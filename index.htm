@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>AI Pathfinding Project</title>
+    <meta name="author" content="Louis Jackman">
+    <meta name="description" content="The AI Pathfinding Project: a demonstration of pathfinding.">
+    <meta name="keywords" content="ai,artificial intelligence,pathfinding">
+    <link rel="stylesheet" type="text/css" href="style.css">
+  </head>
+  <body>
+    <header>
+      <h1>AI Pathfinding Project</h1>
+      <table class="help">
+        <tr>
+          <td>W, A, S, D</td>
+          <td>Moves the Agent</td>
+        </tr>
+        <tr>
+          <td>P</td>
+          <td>Draws a Path to the Destination</td>
+        </tr>
+        <tr>
+          <td>Press Tile</td>
+          <td>Sets the Specified Entity</td>
+        </tr>
+      </table>
+      <table class="controls">
+        <tr class="pathfinding-algorithm">
+          <td>Pathfinding Algorithm</td>
+          <td>
+            <select>
+              <option>Djikstra's Algorithm</option>
+              <option>A*</option>
+              <option>Random Depth-First</option>
+              <option>Directional Depth-First</option>
+            </select>
+          </td>
+        <tr>
+        <tr class="allow-diagonals-in-paths">
+          <td>Allow Diagonals in Paths</td>
+          <td><input type="checkbox"></input></td>
+        </tr>
+        <tr class="entity-to-set">
+          <td>Entity Type to Set</td>
+          <td>
+            <select>
+              <option>Wall</option>
+              <option>Empty</option>
+              <option>Enemy</option>
+              <option>Destination (Move)</option>
+              <option>Agent (Move)</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td>Status</td>
+          <td class="status">Normal</td>
+        </tr>
+      </table>
+    </header>
+    <main>
+      <canvas class="area" width="600" height="400">
+        <p class="warning">
+          HTML5 Canvas support is required, but is not supported.
+        </p>
+      </canvas>
+    </main>
+    <script type="text/javascript" src="main.js"></script>
+    <noscript>
+      <p class="warning">
+        JavaScript support is required, but is not supported.
+      </p>
+    </noscript>
+  </body>
+</html>
+

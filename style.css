@@ -1,0 +1,48 @@
+* {
+    padding: 0;
+    margin: 0 auto;
+}
+
+body {
+    background-color: #333;
+    color: #ddd;
+    font-family: sans-serif;
+    padding: 15px;
+}
+
+h1 {
+    font-weight: lighter;
+    text-align: center;
+}
+
+header > *:not(:first-child),
+main > * {
+    margin-top: 15px;
+}
+
+.warning {
+    background-color: red;
+}
+
+table {
+    border: solid 1px;
+    padding: 10px;
+    min-width: 500px;
+}
+
+td {
+    width: 50%;
+}
+
+td:first-child {
+    text-align: right;
+}
+
+td:first-child:after {
+    content: ': ';
+    padding-right: 10px;
+}
+
+.area {
+    display: block;
+}
