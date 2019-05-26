@@ -55,7 +55,6 @@ export const keyCodes = (() => {
 const listenToDirectionalInput = processDirection => {
   addEventListener("keydown", event => {
     const direction = keyCodes.get(event.keyCode);
-    debugger;
 
     if (isDefined(direction)) {
       processDirection(direction);
