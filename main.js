@@ -1,978 +1,889 @@
-/*jslint browser: true */
+//
+// Utility Functions
+//
 
-var game = (function () {
-    "use strict";
+const {freeze, seal} = Object;
 
-    //
-    // Utility Functions
-    //
+export const fail = msg => {
+    throw new Error(`Error: ${msg}`);
+};
 
-    var freeze = Object.freeze;
-    var seal = Object.seal;
+export const emptyObject = freeze(Object.create(null));
 
-    var fail = function (msg) {
-        throw new Error("Error: " + msg);
-    };
+export const listKeys = xs => {
+    const keys = [];
+    for (let key of xs.keys()) {
+        keys.push(key);
+    }
+    return keys;
+};
 
-    var getContext = function (element) {
-        var context;
+export const getContext = element => {
+    if (element === null) {
+        fail("the specified element was not found");
+    }
 
-        if (element === null) {
-            fail("the specified element was not found");
+    const context = element.getContext("2d");
+    if (context === undefined) {
+        fail("2D context could not be acquired");
+    }
+
+    return context;
+};
+
+export const isDefined = x => x !== undefined;
+
+export const definedOr = (x, alternative) =>
+    isDefined(x)
+        ? x
+        : alternative;
+
+export const identity = x => x;
+export const constant = x => () => x;
+
+const upKeyCode = 87;
+const downKeyCode = 83;
+const leftKeyCode = 65;
+const rightKeyCode = 68;
+
+export const keyCodes = (() => {
+    const codes = new Map();
+    codes.set(upKeyCode, "up");
+    codes.set(downKeyCode, "down");
+    codes.set(leftKeyCode, "left");
+    codes.set(rightKeyCode, "right");
+    return codes;
+})();
+
+const listenToDirectionalInput = processDirection => {
+
+    addEventListener("keydown", event => {
+        const direction = keyCodes.get(event.keyCode);
+        debugger;
+
+        if (isDefined(direction)) {
+            processDirection(direction);
+        }
+    });
+};
+
+const letterPKeyCode = 80;
+
+const listenToPathfindingRequest = process => {
+
+    addEventListener("keydown", event => {
+        if (event.keyCode === letterPKeyCode) {
+            process();
+        }
+    });
+};
+
+export class Coordinates {
+
+    constructor({x, y}) {
+        this.x = x;
+        this.y = y;
+    }
+
+    toString() {
+        return `${this.x},${this.y}`;
+    }
+
+    equals(other) {
+        return (this.x === other.x) && (this.y === other.y);
+    }
+
+    getNeighbours(getDiagonals = false) {
+        const {x, y} = this;
+
+        const neighbours = [
+            [x, y - 1],
+            [x - 1, y],
+            [x + 1, y],
+            [x, y + 1]
+        ];
+
+        if (getDiagonals) {
+            [
+                [x - 1, y - 1],
+                [x + 1, y - 1],
+                [x - 1, y + 1],
+                [x + 1, y + 1]
+            ].forEach(xy => neighbours.push(xy));
         }
 
-        context = element.getContext("2d");
+        return freeze(neighbours.map(neighbour =>
+            new Coordinates({
+                x: neighbour[0],
+                y: neighbour[1]
+            })
+        ));
+    }
 
-        if (element === undefined) {
-            fail("2D context could not be acquired");
+    difference({x, y}) {
+        return new Coordinates({
+            x: Math.abs(this.x - x),
+            y: Math.abs(this.y - y)
+        });
+    }
+
+    get magnitude() {
+        return Math.sqrt((this.x * this.x) + (this.y * this.y));
+    }
+
+    withinProximity(radius, xy) {
+        return this.difference(xy).magnitude <= radius;
+    }
+
+    move(direction) {
+        let {x, y} = this;
+
+        switch (direction) {
+            case "left":
+                --x;
+                break;
+            case "right":
+                ++x;
+                break;
+            case "up":
+                --y;
+                break;
+            case "down":
+                ++y;
+                break;
+            default:
+                fail("invalid direction");
         }
 
-        return context;
-    };
+        return new Coordinates({x, y});
+    }
+}
 
-    var isDefined = function (x) { return x !== undefined; };
+export const createCoordinatesFromString = (() => {
+    const cache = new Map();
 
-    var definedOr = function (x, alternative) {
-        return isDefined(x) ? x : alternative;
-    };
-
-    var listenToDirectionalInput = function (processDirection) {
-
-        addEventListener("keydown", function (event) {
-            var direction = keyCodes[event.keyCode];
-
-            if (isDefined(direction)) {
-                processDirection(direction);
-            }
-        });
-    };
-
-    var listenToPathfindingRequest = function (process) {
-
-        addEventListener("keydown", function (event) {
-            if (event.keyCode === 80) {
-                process();
-            }
-        });
-    };
-
-    var identity = function (x) { return x; };
-    var constant = function (x) { return function () { return x; }; };
-
-    //
-    // Coordinates
-    //
-
-    var coordinates = (function () {
-
-        var toString = function () {
-            return [this.x, this.y].join(",");
-        };
-
-        var equals = function (other) {
-            return (this.x === other.x) && (this.y === other.y);
-        };
-
-        var getNeighbours = function (maybeGetDiagonals) {
-            var getDiagonals = definedOr(maybeGetDiagonals, false);
-
-            var x = this.x;
-            var y = this.y;
-
-            var neighbours = [
-                [x, y - 1],
-                [x - 1, y],
-                [x + 1, y],
-                [x, y + 1]
-            ];
-
-            if (getDiagonals) {
-                [
-                    [x - 1, y - 1],
-                    [x + 1, y - 1],
-                    [x - 1, y + 1],
-                    [x + 1, y + 1]
-                ].forEach(function (xy) {
-                    neighbours.push(xy);
-                });
-            }
-
-            return freeze(neighbours.map(function (neighbour) {
-                return createCoordinates({
-                    x: neighbour[0],
-                    y: neighbour[1]
-                });
-            }));
-        };
-
-        var difference = function (other) {
-            return createCoordinates({
-                x: Math.abs(this.x - other.x),
-                y: Math.abs(this.y - other.y)
+    return string => {
+        let result;
+        if (cache.has(string)) {
+            result = cache.get(string);
+        } else {
+            const [xString, yString] = string.split(",");
+            result = new Coordinates({
+                x: Number.parseInt(xString),
+                y: Number.parseInt(yString),
             });
-        };
-
-        var getMagnitude = function () {
-            return Math.sqrt((this.x * this.x) + (this.y * this.y));
-        };
-
-        var withinProximity = function (radius, xy) {
-            return this.difference(xy).getMagnitude() <= radius;
-        };
-
-        var move = function (direction) {
-            var x = this.x;
-            var y = this.y;
-
-            switch (direction) {
-                case "left":
-                    --x;
-                    break;
-                case "right":
-                    ++x;
-                    break;
-                case "up":
-                    --y;
-                    break;
-                case "down":
-                    ++y;
-                    break;
-                default:
-                    fail("invalid direction");
-            }
-
-            return createCoordinates({ x: x, y: y });
-        };
-
-        return freeze({
-            toString: toString,
-            equals: equals,
-            getNeighbours: getNeighbours,
-            getMagnitude: getMagnitude,
-            withinProximity: withinProximity,
-            difference: difference,
-            move: move
-        });
-    }());
-
-    var createCoordinates = function (args) {
-        var obj = Object.create(coordinates);
-
-        obj.x = args.x;
-        obj.y = args.y;
-        return freeze(obj);
+            cache.set(string, result);
+        }
+        return result;
     };
+})();
 
-    var createCoordinatesFromString = (function () {
-        var cache = Object.create(null);
+const createColors = ({
+    empty = "black",
+    wall = "#ccc",
+    agent = "blue",
+    destination = "green",
+    enemy = "red",
+    navigated = "yellow",
+}) => {
+    const colors = new Map();
+    colors.set("empty", empty);
+    colors.set("wall", wall);
+    colors.set("agent", agent);
+    colors.set("destination", destination);
+    colors.set("enemy", enemy);
+    colors.set("navigated", navigated);
+    return colors;
+};
 
-        return function (string) {
-            var splitted;
-            var result;
+export class CanvasGrid {
 
-            if (cache[string] === undefined) {
-                splitted = string.split(",");
-                result = createCoordinates({
-                    x: ~~splitted[0],
-                    y: ~~splitted[1]
-                });
-                cache[string] = result;
-            } else {
-                result = cache[string];
-            }
-            return result;
-        };
-    }());
+    constructor({
+        colors = emptyObject,
+        context = getContext(document.querySelector(".area")),
+        cellWidth = 20,
+        cellHeight = 20,
+        width = defaultAreaWidth,
+        height = defaultAreaHeight
+    }) {
+        this.colors = createColors(colors);
+        this.context = context;
+        this.cellWidth = cellWidth;
+        this.cellHeight = cellHeight;
+        this.width = width;
+        this.height = height;
 
-    //
-    // Canvas Grid
-    //
+        this.clear();
+    }
 
-    var canvasGrid = (function () {
+    drawTile({x, y}, tileType) {
+        const {context, cellWidth, cellHeight} = this;
 
-        var drawTile = function (xy, tileType) {
-            var context = this.context;
-            var cellWidth = this.cellWidth;
-            var cellHeight = this.cellHeight;
-
-            context.fillStyle = this.colors[tileType];
-            context.fillRect(
-                cellWidth * xy.x,
-                cellHeight * xy.y,
-                cellWidth,
-                cellHeight
-            );
-        };
-
-        var clear = function () {
-            var context = this.context;
-
-            context.fillStyle = this.colors.empty;
-            context.fillRect(
-                0,
-                0,
-                this.cellWidth * this.width,
-                this.cellHeight * this.height
-            );
-        };
-
-        return freeze({
-            drawTile: drawTile,
-            clear: clear
-        });
-    }());
-
-    var createCanvasGrid = function (maybeArgs) {
-        var obj = Object.create(canvasGrid);
-        var args = definedOr(maybeArgs, emptyObject);
-        var colors = definedOr(args.colors, emptyObject);
-
-        obj.context = definedOr(
-            args.context,
-            getContext(document.querySelector(".area"))
+        context.fillStyle = this.colors.get(tileType);
+        context.fillRect(
+            cellWidth * x,
+            cellHeight * y,
+            cellWidth,
+            cellHeight
         );
-        obj.cellWidth = definedOr(args.cellWidth, 20);
-        obj.cellHeight = definedOr(args.cellHeight, 20);
-        obj.width = definedOr(args.width, defaultAreaWidth);
-        obj.height = definedOr(args.height, defaultAreaHeight);
-        obj.colors = Object.create(null);
-        obj.colors.empty = definedOr(colors.empty, "black");
-        obj.colors.wall = definedOr(colors.wall, "#ccc");
-        obj.colors.agent = definedOr(colors.agent, "blue");
-        obj.colors.destination = definedOr(colors.destination, "green");
-        obj.colors.enemy = definedOr(colors.enemy, "red");
-        obj.colors.navigated = definedOr(colors.navigated, "yellow");
+    }
 
-        obj.clear();
+    clear() {
+        const {context, cellWidth, cellHeight, width, height, colors} = this;
 
-        return freeze(obj);
-    };
+        context.fillStyle = colors.get("empty");
+        context.fillRect(
+            0,
+            0,
+            cellWidth * width,
+            cellHeight * height
+        );
+    }
+}
 
-    //
-    // Area
-    //
+export class Area {
 
-    var area = (function () {
+    constructor({
+        width = defaultAreaWidth,
+        height = defaultAreaHeight,
+        allowDiagonalsInPaths = false,
+        pathfindingAlgorithm = "Djikstra's Algorithm",
+        entityToSet = "Wall",
+        canvasGrid: maybeCanvasGrid
+    }) {
+        this.width = width;
+        this.height = height;
+        this.allowDiagonalsInPaths = allowDiagonalsInPaths;
+        this.pathfindingAlgorithm = pathfindingAlgorithm;
+        this.entityToSet = entityToSet;
 
-        var addEntity = function (xy, entityType) {
-            if (isDefined(this.entities[xy])) {
-                fail("an added entity cannot overlap an existing one");
-            }
+        this.canvasGrid = definedOr(maybeCanvasGrid, new CanvasGrid({
+            height,
+            width
+        }));
 
-            if (entityType !== "empty") {
-                this.entities[xy] = entityType;
-            }
+        this.entities = new Map();
+    }
 
-            this.canvasGrid.drawTile(xy, entityType);
-        };
+    addEntity(xy, entityType) {
+        const key = String(xy);
 
-        var deleteEntity = function (xy) {
-            delete this.entities[xy];
+        if (this.entities.has(key)) {
+            fail("an added entity cannot overlap an existing one");
+        }
+
+        if (entityType !== "empty") {
+            this.entities.set(key, entityType);
+        }
+
+        this.canvasGrid.drawTile(xy, entityType);
+    }
+
+    deleteEntity(xy) {
+        this.entities.delete(String(xy));
+        this.canvasGrid.drawTile(xy, "empty");
+    }
+
+    areCoordinatesValid(xy) {
+        return (
+            (0 <= xy.x)
+                && (xy.x < this.width)
+                && (0 <= xy.y)
+                && (xy.y < this.height)
+        );
+    }
+
+    isValidAgentPosition(xy) {
+        return (
+            this.areCoordinatesValid(xy)
+                    && (this.entities.get(String(xy)) !== "wall")
+        );
+    }
+
+    moveEntity(xy, direction) {
+        const newCoordinates = xy.move(direction);
+
+        let result;
+        if (this.isValidAgentPosition(newCoordinates)) {
+            const {entities} = this;
+
+            const oldKey = String(xy);
+            const key = String(newCoordinates);
+
+            entities.set(String(key), entities.get(oldKey));
+            entities.delete(oldKey);
+
             this.canvasGrid.drawTile(xy, "empty");
-        };
-
-        var areCoordinatesValid = function (xy) {
-            return (
-                (0 <= xy.x)
-                    && (xy.x < this.width)
-                    && (0 <= xy.y)
-                    && (xy.y < this.height)
+            this.canvasGrid.drawTile(
+                newCoordinates,
+                entities.get(key)
             );
-        };
 
-        var isValidAgentPosition = function (xy) {
-            return (
-                this.areCoordinatesValid(xy)
-                        && (this.entities[xy] !== "wall")
-            );
-        };
+            result = newCoordinates;
+        } else {
+            result = xy;
+        }
+        return result;
+    }
 
-        var moveEntity = function (xy, direction) {
-            var newCoordinates = xy.move(direction);
-            var entities;
-
-            if (this.isValidAgentPosition(newCoordinates)) {
-                entities = this.entities;
-
-                entities[newCoordinates] = entities[xy];
-                delete entities[xy];
-
-                this.canvasGrid.drawTile(xy, "empty");
-                this.canvasGrid.drawTile(
-                    newCoordinates,
-                    entities[newCoordinates]
-                );
-
-                return newCoordinates;
-            } else {
-                return xy;
-            }
-        };
-
-        var addEntitiesFromStrings = function (strings, args) {
-            var that = this;
-
-            strings.forEach(function (string, y) {
-                string.split("").forEach(function (character, x) {
-                    var xy = createCoordinates({ x: x, y: y });
-                    var tile = characterTiles[character];
-
-                    that.addEntity(xy, tile);
-                });
+    addEntitiesFromStrings(strings, args) {
+        strings.forEach((string, y) => {
+            string.split("").forEach((character, x) => {
+                const xy = new Coordinates({x, y});
+                const tile = characterTiles.get(character);
+                this.addEntity(xy, tile);
             });
-        };
+        });
+    }
 
-        var findDepthFirstPath = function (
+    findDepthFirstPath(
+        source,
+        destination,
+        visitedNodes = new Set(),
+        sortNeighbours = identity,
+        navigated = []
+    ) {
+        navigated.push(source);
+
+        if (source.equals(destination)) {
+            navigated.shift();
+            navigated.pop();
+            return navigated;
+        }
+
+        visitedNodes.add(String(source));
+
+        const neighbours = source.getNeighbours(this.allowDiagonalsInPaths);
+
+        const unvisitedNeighbours = sortNeighbours(neighbours.filter(neighbour => {
+            return this.isValidAgentPosition(neighbour)
+                && !visitedNodes.has(String(neighbour))
+        }));
+
+        if (unvisitedNeighbours.length === 0) {
+            return [];
+        }
+
+        for (let neighbour of unvisitedNeighbours) {
+            const path = this.findDepthFirstPath(
+                neighbour,
+                destination,
+                visitedNodes,
+                sortNeighbours,
+                navigated
+            );
+
+            if (path.length !== 0) {
+                return path;
+            }
+        }
+        return [];
+    }
+
+    findDepthFirstPathDirectionally(
+        source,
+        destination,
+        maybeVisitedNodes
+    ) {
+        return this.findDepthFirstPath(
             source,
             destination,
             maybeVisitedNodes,
-            maybeSortNeighbours,
-            maybeNavigated
-        ) {
-            var visitedNodes = definedOr(
-                maybeVisitedNodes,
-                Object.create(null)
+
+            neighbours => neighbours.sort((a, b) => {
+                const aDelta = destination.difference(a).magnitude;
+                const bDelta = destination.difference(b).magnitude;
+
+                return aDelta < bDelta ?
+                    -1 :
+                    bDelta < aDelta ?
+                        1 :
+                        0;
+            })
+        );
+    }
+
+    findDijkstraPath(
+        source,
+        destination,
+        getHeuristic = constant(0)
+    ) {
+        const unvisitedNodes = new Map();
+        const distances = new Map();
+        const previousDistances = new Map();
+        const navigated = [];
+        let current;
+
+        const compareDistances = (a, b) => {
+            const aKey = String(a);
+            const bKey = String(b);
+
+            return (distances.get(aKey) < distances.get(bKey))
+                ?
+                    -1
+                    : ((distances.get(bKey) < distances.get(aKey))
+                        ?  1
+                        : 0
+                    );
+        };
+
+        const updateDistance = neighbour => {
+            const distance = (
+                distances.get(String(current))
+                    + 1
+                    + getHeuristic(neighbour)
             );
-            var sortNeighbours = definedOr(maybeSortNeighbours, identity);
-            var navigated = definedOr(maybeNavigated, []);
 
-            var that = this;
-            var neighbours;
-            var unvisitedNeighbours;
-            var neighbouringResult;
+            const neighbourKey = String(neighbour);
+            if (distance < distances.get(neighbourKey)) {
+                previousDistances.set(neighbourKey, current);
+                distances.set(neighbourKey, distance);
+            }
+        };
 
-            navigated.push(source);
+        const sourceKey = String(source);
+        distances.set(sourceKey, 0);
+        unvisitedNodes.set(sourceKey, true);
 
-            if (source.equals(destination)) {
-                navigated.shift();
-                navigated.pop();
+        for (let y = 0; y < this.height; ++y) {
+            for (let x = 0; x < this.width; ++x) {
+                const xy = new Coordinates({x, y});
+
+                if (
+                    this.isValidAgentPosition(xy)
+                        && !source.equals(xy)
+                ) {
+                    const key = String(xy);
+                    unvisitedNodes.set(key, true);
+                    distances.set(key, Infinity);
+                }
+            }
+        }
+
+        while (unvisitedNodes.size !== 0) {
+
+            const sorted = listKeys(unvisitedNodes)
+                .sort(compareDistances)
+                .map(key => createCoordinatesFromString(key));
+
+            current = sorted[0];
+            const currentKey = String(current);
+
+            unvisitedNodes.delete(currentKey);
+
+            if (current.equals(destination)) {
+                let previous = previousDistances.get(currentKey);
+                let previousKey = String(previous);
+
+                while (previousDistances.has(previousKey)) {
+                    navigated.push(previous);
+                    previous = previousDistances.get(previousKey);
+                    previousKey = String(previous);
+                }
                 return navigated;
             }
 
-            visitedNodes[source] = true;
+            current
+                .getNeighbours(this.allowDiagonalsInPaths)
+                .forEach(updateDistance);
+        }
 
-            neighbours = source.getNeighbours(this.allowDiagonalsInPaths);
-            unvisitedNeighbours = sortNeighbours(neighbours
-                .filter(function (neighbour) {
-                    return (
-                        that.isValidAgentPosition(neighbour)
-                                && (visitedNodes[neighbour] === undefined)
-                    );
-                })
-            );
+        return [];
+    }
 
-            if (unvisitedNeighbours.length === 0) {
-                return [];
-            }
-
-            neighbouringResult = (function () {
-                var i;
-                var path;
-                var neighbour;
-
-                for (i = 0; i < unvisitedNeighbours.length; i += 1) {
-                    neighbour = unvisitedNeighbours[i];
-                    path = that.findDepthFirstPath(
-                        neighbour,
-                        destination,
-                        visitedNodes,
-                        sortNeighbours,
-                        navigated
-                    );
-
-                    if (path.length !== 0) {
-                        return path;
-                    }
-                }
-                return [];
-            }());
-
-            return neighbouringResult;
-        };
-
-        var findDepthFirstPathDirectionally = function (
+    findAStarPath(source, destination) {
+        return this.findDijkstraPath(
             source,
             destination,
-            maybeVisitedNodes
-        ) {
-            var that = this;
 
-            return this.findDepthFirstPath(
-                source,
-                destination,
-                maybeVisitedNodes,
-                function (neighbours) {
-
-                    return neighbours.sort(function (a, b) {
-                        var aDelta = destination.difference(a).getMagnitude();
-                        var bDelta = destination.difference(b).getMagnitude();
-
-                        return aDelta < bDelta ?
-                            -1 :
-                            bDelta < aDelta ?
-                                1 :
-                                0;
-                    });
-                }
-            );
-        };
-
-        var findDijkstraPath = function (
-            source,
-            destination,
-            maybeGetHeuristic
-        ) {
-            var getHeuristic = definedOr(maybeGetHeuristic, constant(0));
-
-            var that = this;
-            var unvisitedNodes = Object.create(null);
-            var distances = Object.create(null);
-            var previousDistances = Object.create(null);
-            var current;
-            var previous;
-            var navigated = [];
-            var x;
-            var y;
-            var xy;
-            var sorted;
-
-            var compareDistances = function (a, b) {
-                return ((distances[a] < distances[b])
-                    ?
-                        -1
-                        : ((distances[b] < distances[a])
-                            ?  1
-                            : 0
-                        )
-                );
-            };
-
-            var updateDistance = function (neighbour) {
-                var distance = (
-                    distances[current]
-                        + 1
-                        + getHeuristic(neighbour)
-                );
-
-                if (distance < distances[neighbour]) {
-                    previousDistances[neighbour] = current;
-                    distances[neighbour] = distance;
-                }
-            };
-
-            distances[source] = 0;
-            unvisitedNodes[source] = true;
-
-            for (y = 0; y < this.height; y += 1) {
-                for (x = 0; x < this.width; x += 1) {
-                    xy = createCoordinates({ x: x, y: y });
-
-                    if (
-                        that.isValidAgentPosition(xy)
-                            && !source.equals(xy)
-                    ) {
-                        unvisitedNodes[xy] = true;
-                        distances[xy] = Infinity;
-                    }
-                }
-            }
-
-            while (unvisitedNodes.length !== 0) {
-
-                sorted = Object
-                    .keys(unvisitedNodes)
-                    .sort(compareDistances)
-                    .map(createCoordinatesFromString);
-
-                current = sorted[0];
-
-                delete unvisitedNodes[current];
-
-                if (current.equals(destination)) {
-                    previous = previousDistances[current];
-
-                    while (isDefined(previousDistances[previous])) {
-                        navigated.push(previous);
-                        previous = previousDistances[previous];
-                    }
-                    return navigated;
-                }
-
-                current
-                    .getNeighbours(this.allowDiagonalsInPaths)
-                    .forEach(updateDistance);
-            }
-
-            return [];
-        };
-
-        var findAStarPath = function (source, destination) {
-            return this.findDijkstraPath(
-                source,
-                destination,
-                function (neighbour) {
-                    return neighbour.difference(destination).getMagnitude();
-                });
-        };
-
-        return freeze({
-            addEntity: addEntity,
-            deleteEntity: deleteEntity,
-            areCoordinatesValid: areCoordinatesValid,
-            isValidAgentPosition: isValidAgentPosition,
-            moveEntity: moveEntity,
-            addEntitiesFromStrings: addEntitiesFromStrings,
-            findDepthFirstPath: findDepthFirstPath,
-            findDepthFirstPathDirectionally: findDepthFirstPathDirectionally,
-            findDijkstraPath: findDijkstraPath,
-            findAStarPath: findAStarPath
-        });
-    }());
-
-    var createArea = function (maybeArgs) {
-        var obj = Object.create(area);
-        var args = definedOr(maybeArgs, emptyObject);
-
-        obj.width = definedOr(args.width, defaultAreaWidth);
-        obj.height = definedOr(args.height, defaultAreaHeight);
-
-        obj.allowDiagonalsInPaths = definedOr(args.allowDiagonalsInPaths, false);
-        obj.pathfindingAlgorithm = definedOr(
-            args.pathfindingAlgorithm,
-            "Djikstra's Algorithm"
+            neighbour =>
+                neighbour.difference(destination).magnitude
         );
-        obj.entityToSet = definedOr(args.entityToSet, "Wall");
+    }
+}
 
-        obj.canvasGrid = definedOr(args.canvasGrid, createCanvasGrid({
-            width: obj.width,
-            height: obj.height
-        }));
+//
+// Utility Data
+//
 
-        obj.entities = Object.create(null);
+export const enemyDetectionProximity = 6;
 
-        return seal(obj);
-    };
+export const defaultAreaWidth = 30;
+export const defaultAreaHeight = 20;
 
-    //
-    // Utility Data
-    //
+export const characterTiles = (() => {
+    const tiles = new Map();
+    tiles.set("#", "wall");
+    tiles.set(" ", "empty");
+    tiles.set("O", "agent");
+    tiles.set("!", "enemy");
+    tiles.set("X", "destination");
+    return tiles;
+})();
 
-    var emptyObject = freeze(Object.create(null));
+export const levels = [
+    {
+        layout: [
+            "##############################",
+            "#                 #     #    #",
+            "#                 #     #    #",
+            "##########        #     #    #",
+            "#               # #     #    #",
+            "#  ############## #     #    #",
+            "#   #           # #     #    #",
+            "#   #           # #     #    #",
+            "#   #    ##########     #    #",
+            "#   #                   #    #",
+            "#   #                        #",
+            "#   ##########               #",
+            "#   #  #    #    #############",
+            "#   #  #    #                #",
+            "#      #    #     ############",
+            "#      #    #                #",
+            "#                   #        #",
+            "#  ##########       #        #",
+            "#           #       #        #",
+            "##############################"
+        ],
+        agent: new Coordinates({x: 11, y: 2}),
+        destination: new Coordinates({x: 25, y: 17}),
+        enemies: [
+            new Coordinates({x: 7, y: 8}),
+            new Coordinates({x: 27, y: 5}),
+            new Coordinates({x: 11, y: 18})
+        ]
+    },
+    {
+        layout: [
+            "##############################",
+            "#                            #",
+            "#     ########################",
+            "#     #            #         #",
+            "#     #            #         #",
+            "#     #            #    #    #",
+            "#     #            #    #    #",
+            "#     #            #    #    #",
+            "#     ####         #    #    #",
+            "#           #      #    #    #",
+            "#           #      #    #    #",
+            "#           # ######    #    #",
+            "#           #           #    #",
+            "#     ####  #           #    #",
+            "#     #                 #    #",
+            "#     #     ########    #    #",
+            "#     #            #    #    #",
+            "#     #            #    #    #",
+            "#                  #    #    #",
+            "##############################"
+        ],
+        agent: new Coordinates({x: 2, y: 2}),
+        destination: new Coordinates({x: 27, y: 17}),
+        enemies: [
+            new Coordinates({x: 2, y: 14}),
+            new Coordinates({x: 14, y: 9})
+        ]
+    },
+    {
+        layout: [
+            "##############################",
+            "#   #                 #      #",
+            "#   #                 #      #",
+            "#   #                 #      #",
+            "#   #  ############   #      #",
+            "#   #                 #      #",
+            "#   #                        #",
+            "#         #                  #",
+            "#         #       ############",
+            "#         #                  #",
+            "#         #                  #",
+            "#         #                  #",
+            "#         #    ############  #",
+            "#         #                  #",
+            "#                     #      #",
+            "#                     #      #",
+            "#   ############      #      #",
+            "#                     #      #",
+            "#                     #      #",
+            "##############################"
+        ],
+        agent: new Coordinates({x: 2, y: 1}),
+        destination: new Coordinates({x: 25, y: 17}),
+        enemies: [
+            new Coordinates({x: 2, y: 17}),
+            new Coordinates({x: 25, y: 5}),
+            new Coordinates({x: 12, y: 10})
+        ]
+    },
+    {
+        layout: [
+            "##############################",
+            "#                 #          #",
+            "#                 #          #",
+            "#    #####        #          #",
+            "#                 #          #",
+            "#  ################          #",
+            "#   #                        #",
+            "#   #                        #",
+            "#   #########    ########    #",
+            "#                       #    #",
+            "#                            #",
+            "#   ####    ##               #",
+            "#   #  #    #    #############",
+            "#   #  #    #                #",
+            "#      #    #     ##         #",
+            "#      #    #     #          #",
+            "#      #    #######          #",
+            "#      ######                #",
+            "#                            #",
+            "##############################"
+        ],
+        agent: new Coordinates({x: 11, y: 2}),
+        destination: new Coordinates({x: 25, y: 17}),
+        enemies: [
+            new Coordinates({x: 7, y: 7}),
+            new Coordinates({x: 27, y: 7}),
+            new Coordinates({x: 11, y: 18})
+        ]
+    },
+];
 
-    var defaultAreaWidth = 30;
-    var defaultAreaHeight = 20;
+//
+// Main Program
+//
 
-    var keyCodes = {
-        87: "up",
-        83: "down",
-        65: "left",
-        68: "right"
-    };
+const main = () => {
+    let area;
+    let agentPosition;
+    let enemyPositions;
+    let destinationPosition;
+    let path;
+    let currentLevelIndex = -1;
+    let level;
 
-    var characterTiles = (function () {
-        var obj = Object.create(null);
-
-        obj["#"] = "wall";
-        obj[" "] = "empty";
-        obj["O"] = "agent";
-        obj["!"] = "enemy";
-        obj["X"] = "destination";
-        return obj;
-    }());
-
-    var levels = [
-        {
-            layout: [
-                "##############################",
-                "#                 #     #    #",
-                "#                 #     #    #",
-                "##########        #     #    #",
-                "#               # #     #    #",
-                "#  ############## #     #    #",
-                "#   #           # #     #    #",
-                "#   #           # #     #    #",
-                "#   #    ##########     #    #",
-                "#   #                   #    #",
-                "#   #                        #",
-                "#   ##########               #",
-                "#   #  #    #    #############",
-                "#   #  #    #                #",
-                "#      #    #     ############",
-                "#      #    #                #",
-                "#                   #        #",
-                "#  ##########       #        #",
-                "#           #       #        #",
-                "##############################"
-            ],
-            agent: createCoordinates({ x: 11, y: 2 }),
-            destination: createCoordinates({ x: 25, y: 17 }),
-            enemies: [
-                createCoordinates({ x: 7, y: 8 }),
-                createCoordinates({ x: 27, y: 5 }),
-                createCoordinates({ x: 11, y: 18 })
-            ]
-        },
-        {
-            layout: [
-                "##############################",
-                "#                            #",
-                "#     ########################",
-                "#     #            #         #",
-                "#     #            #         #",
-                "#     #            #    #    #",
-                "#     #            #    #    #",
-                "#     #            #    #    #",
-                "#     ####         #    #    #",
-                "#           #      #    #    #",
-                "#           #      #    #    #",
-                "#           # ######    #    #",
-                "#           #           #    #",
-                "#     ####  #           #    #",
-                "#     #                 #    #",
-                "#     #     ########    #    #",
-                "#     #            #    #    #",
-                "#     #            #    #    #",
-                "#                  #    #    #",
-                "##############################"
-            ],
-            agent: createCoordinates({ x: 2, y: 2 }),
-            destination: createCoordinates({ x: 27, y: 17 }),
-            enemies: [
-                createCoordinates({ x: 2, y: 14 }),
-                createCoordinates({ x: 14, y: 9 })
-            ]
-        },
-        {
-            layout: [
-                "##############################",
-                "#   #                 #      #",
-                "#   #                 #      #",
-                "#   #                 #      #",
-                "#   #  ############   #      #",
-                "#   #                 #      #",
-                "#   #                        #",
-                "#         #                  #",
-                "#         #       ############",
-                "#         #                  #",
-                "#         #                  #",
-                "#         #                  #",
-                "#         #    ############  #",
-                "#         #                  #",
-                "#                     #      #",
-                "#                     #      #",
-                "#   ############      #      #",
-                "#                     #      #",
-                "#                     #      #",
-                "##############################"
-            ],
-            agent: createCoordinates({ x: 2, y: 1 }),
-            destination: createCoordinates({ x: 25, y: 17 }),
-            enemies: [
-                createCoordinates({ x: 2, y: 17 }),
-                createCoordinates({ x: 25, y: 5 }),
-                createCoordinates({ x: 12, y: 10 })
-            ]
-        },
-        {
-            layout: [
-                "##############################",
-                "#                 #          #",
-                "#                 #          #",
-                "#    #####        #          #",
-                "#                 #          #",
-                "#  ################          #",
-                "#   #                        #",
-                "#   #                        #",
-                "#   #########    ########    #",
-                "#                       #    #",
-                "#                            #",
-                "#   ####    ##               #",
-                "#   #  #    #    #############",
-                "#   #  #    #                #",
-                "#      #    #     ##         #",
-                "#      #    #     #          #",
-                "#      #    #######          #",
-                "#      ######                #",
-                "#                            #",
-                "##############################"
-            ],
-            agent: createCoordinates({ x: 11, y: 2 }),
-            destination: createCoordinates({ x: 25, y: 17 }),
-            enemies: [
-                createCoordinates({ x: 7, y: 7 }),
-                createCoordinates({ x: 27, y: 7 }),
-                createCoordinates({ x: 11, y: 18 })
-            ]
-        },
-    ];
-
-    //
-    // Main Program
-    //
-
-    var main = function () {
-        var area;
-        var agentPosition;
-        var enemyPositions;
-        var destinationPosition;
-        var path;
-        var currentLevelIndex = -1;
-        var level;
-
-        var ensurePathIsCleared = function () {
-            if (isDefined(path)) {
-                path.forEach(function (xy) {
-                    area.canvasGrid.drawTile(xy, "empty");
-                });
-                path = undefined;
-            }
-
-            enemyPositions.forEach(function (position) {
-                area.canvasGrid.drawTile(position, "enemy");
-            });
-        };
-
-        var resetArea = function () {
-            area = createArea({
-                pathfindingAlgorithm: document
-                    .querySelector(".pathfinding-algorithm select")
-                    .value
-            });
-
-            level = levels[currentLevelIndex];
-            agentPosition = level.agent;
-            enemyPositions = level.enemies.map(function (x) { return x; });
-            destinationPosition = level.destination;
-
-            area.addEntitiesFromStrings(level.layout);
-            area.addEntity(agentPosition, "agent");
-            area.addEntity(destinationPosition, "destination");
-
-            enemyPositions.forEach(function (position) {
-                area.addEntity(position, "enemy");
-            });
-
-            document.querySelector(".status").firstChild.nodeValue = "Normal"
-        };
-
-        var changeLevel = function () {
-            currentLevelIndex += 1;
-            if (levels.length <= currentLevelIndex) {
-                currentLevelIndex = 0;
-            }
-
-            resetArea();
-        };
-
-        var onDestinationArrival = function () {
-            alert("Level Complete");
-            changeLevel();
-        };
-
-        var onDeath = function () {
-            alert("You Died");
-            resetArea();
-        };
-
-        document
-            .querySelector(".allow-diagonals-in-paths input")
-            .addEventListener("click", function (event) {
-                area.allowDiagonalsInPaths = event.target.checked;
-            });
-
-        document
-            .querySelector(".pathfinding-algorithm select")
-            .addEventListener("change", function (event) {
-                area.pathfindingAlgorithm = event.target.value;
-            });
-
-        document
-            .querySelector(".entity-to-set select")
-            .addEventListener("change", function (event) {
-                area.entityToSet = event.target.value;
-            });
-
-        document
-            .querySelector(".area")
-            .addEventListener("mousedown", function (event) {
-                var screenX;
-                var screenY;
-                var x;
-                var y;
-
-                var entityType = {
-                    Wall: "wall",
-                    Empty: "empty",
-                    Enemy: "enemy",
-                    "Destination (Move)": "destination",
-                    "Agent (Move)": "agent"
-                }[document.querySelector(".entity-to-set select").value];
-
-                var xy;
-
-                if (isDefined(event.x)) {
-                    x = event.x;
-                    y = event.y;
-                } else {
-                    x = (
-                        event.clientX
-                            + document.body.scrollLeft
-                            + document.documentElement.scrollLeft
-                    );
-                    y = (
-                        event.clientY
-                            + document.body.scrollTop
-                            + document.documentElement.scrollTop
-                    );
-                }
-
-                x = Math.floor(
-                    (x - event.target.offsetLeft)
-                        / area.canvasGrid.cellWidth
-                );
-                y = Math.floor(
-                    (y - event.target.offsetTop)
-                        / area.canvasGrid.cellHeight
-                );
-
-                xy = createCoordinates({ x: x, y: y });
-
-                area.deleteEntity(xy);
-                switch (entityType) {
-                    case "destination":
-                        area.deleteEntity(destinationPosition);
-                        destinationPosition = xy;
-                        break;
-                    case "agent":
-                        area.deleteEntity(agentPosition);
-                        agentPosition = xy;
-                        break;
-                    case "enemy":
-                        enemyPositions.push(xy);
-                        break;
-                }
-                area.addEntity(xy, entityType);
-            });
-
-        listenToDirectionalInput(function (direction) {
-            var inPursuit = false;
-
-            ensurePathIsCleared();
-
-            enemyPositions.forEach(function (position, index) {
-                var newPosition;
-                var entity;
-
-                if (position.equals(agentPosition)) {
-                    onDeath();
-                    return;
-                }
-
-                if (agentPosition.withinProximity(6, position)) {
-                    newPosition = area.findDijkstraPath(
-                        agentPosition,
-                        position
-                    )[0];
-
-                    if (isDefined(newPosition)) {
-                        entity = area.entities[newPosition];
-                        if (
-                            (entity !== "enemy")
-                                && (entity !== "destination")
-                        ) {
-                            enemyPositions[index] = newPosition;
-                            area.deleteEntity(position);
-                            area.addEntity(newPosition, "enemy");
-
-                            inPursuit = true;
-                        }
-                    }
-                }
-            });
-
-            document.querySelector(".status").firstChild.nodeValue = (
-                inPursuit
-                    ? "Enemy Pursuing"
-                    : "Normal"
+    const ensurePathIsCleared = () => {
+        if (isDefined(path)) {
+            path.forEach(xy =>
+                area.canvasGrid.drawTile(xy, "empty")
             );
+            path = undefined;
+        }
 
-            agentPosition = area.moveEntity(agentPosition, direction);
+        enemyPositions.forEach(position =>
+            area.canvasGrid.drawTile(position, "enemy")
+        );
+    };
 
-            if (agentPosition.equals(destinationPosition)) {
-                onDestinationArrival();
-            }
+    const resetArea = () => {
+        area = new Area({
+            pathfindingAlgorithm: document
+                .querySelector(".pathfinding-algorithm select")
+                .value
         });
 
-        listenToPathfindingRequest(function () {
-            ensurePathIsCleared();
+        level = levels[currentLevelIndex];
+        agentPosition = level.agent;
+        enemyPositions = level.enemies.map(identity);
+        destinationPosition = level.destination;
 
-            switch (area.pathfindingAlgorithm) {
-                case "Random Depth-First":
-                    path = area.findDepthFirstPath(
-                        agentPosition,
-                        destinationPosition
-                    );
-                    break;
-                case "Directional Depth-First":
-                    path = area.findDepthFirstPathDirectionally(
-                        agentPosition,
-                        destinationPosition
-                    );
-                    break;
-                case "Djikstra's Algorithm":
-                    path = area.findDijkstraPath(
-                        agentPosition,
-                        destinationPosition
-                    );
-                    break;
-                case "A*":
-                    path = area.findAStarPath(
-                        agentPosition,
-                        destinationPosition
-                    );
-                    break;
-                default:
-                    fail(
-                        "invalid pathfinding algorithm selected: "
-                            + area.pathfindingAlgorithm
-                    );
-                    break;
-            }
+        area.addEntitiesFromStrings(level.layout);
+        area.addEntity(agentPosition, "agent");
+        area.addEntity(destinationPosition, "destination");
 
-            if (path.length === 0) {
-                alert("No path was found.");
-            } else {
-                path.forEach(function (xy) {
-                    area.canvasGrid.drawTile(xy, "navigated");
-                });
-            }
-        });
+        enemyPositions.forEach(position =>
+            area.addEntity(position, "enemy")
+        );
 
+        document.querySelector(".status").firstChild.nodeValue = "Normal"
+    };
+
+    const changeLevel = () => {
+        ++currentLevelIndex;
+        if (levels.length <= currentLevelIndex) {
+            currentLevelIndex = 0;
+        }
+
+        resetArea();
+    };
+
+    const onDestinationArrival = () => {
+        alert("Level Complete");
         changeLevel();
     };
 
-    main();
+    const onDeath = () => {
+        alert("You Died");
+        resetArea();
+    };
 
-    return freeze({
-        emptyObject: emptyObject,
-        defaultAreaWidth: defaultAreaWidth,
-        defaultAreaHeight: defaultAreaHeight,
-        keyCodes: keyCodes,
-        characterTiles: characterTiles,
-        getContext: getContext,
-        isDefined: isDefined,
-        definedOr: definedOr,
-        listenToDirectionalInput: listenToDirectionalInput,
-        listenToPathfindingRequest: listenToPathfindingRequest,
-        levels: levels,
-        main: main,
-        coordinates: coordinates,
-        createCoordinates: createCoordinates,
-        createCoordinatesFromString: createCoordinatesFromString,
-        canvasGrid: canvasGrid,
-        createCanvasGrid: createCanvasGrid,
-        area: area,
-        createArea: createArea
+    document
+        .querySelector(".allow-diagonals-in-paths input")
+        .addEventListener("click", event => {
+            area.allowDiagonalsInPaths = event.target.checked;
+        });
+
+    document
+        .querySelector(".pathfinding-algorithm select")
+        .addEventListener("change", event => {
+            area.pathfindingAlgorithm = event.target.value;
+        });
+
+    document
+        .querySelector(".entity-to-set select")
+        .addEventListener("change", event => {
+            area.entityToSet = event.target.value;
+        });
+
+    const entityUiNames = new Map();
+    entityUiNames.set("Wall", "wall");
+    entityUiNames.set("Empty", "empty");
+    entityUiNames.set("Enemy", "enemy");
+    entityUiNames.set("Destination (Move)", "destination");
+    entityUiNames.set("Agent (Move)", "agent");
+
+    const entityToSetElement = document.querySelector(".entity-to-set select")
+
+    document
+        .querySelector(".area")
+        .addEventListener("mousedown", event => {
+            const entityType = entityUiNames.get(entityToSetElement.value);
+
+            let baseX;
+            let baseY;
+            if (isDefined(event.x)) {
+                baseX = event.x;
+                baseY = event.y;
+            } else {
+                baseX = (
+                    event.clientX
+                        + document.body.scrollLeft
+                        + document.documentElement.scrollLeft
+                );
+                baseY = (
+                    event.clientY
+                        + document.body.scrollTop
+                        + document.documentElement.scrollTop
+                );
+            }
+
+            const x = Math.floor(
+                (baseX - event.target.offsetLeft)
+                    / area.canvasGrid.cellWidth
+            );
+            const y = Math.floor(
+                (baseY - event.target.offsetTop)
+                    / area.canvasGrid.cellHeight
+            );
+
+            const xy = new Coordinates({x, y});
+
+            area.deleteEntity(xy);
+            switch (entityType) {
+                case "destination":
+                    area.deleteEntity(destinationPosition);
+                    destinationPosition = xy;
+                    break;
+                case "agent":
+                    area.deleteEntity(agentPosition);
+                    agentPosition = xy;
+                    break;
+                case "enemy":
+                    enemyPositions.push(xy);
+                    break;
+            }
+            area.addEntity(xy, entityType);
+        });
+
+    listenToDirectionalInput(direction => {
+        let inPursuit = false;
+
+        ensurePathIsCleared();
+
+        enemyPositions.forEach((position, index) => {
+
+            if (position.equals(agentPosition)) {
+                onDeath();
+
+            } else if (agentPosition.withinProximity(enemyDetectionProximity, position)) {
+                const newPosition = area.findDijkstraPath(
+                    agentPosition,
+                    position
+                )[0];
+
+                if (isDefined(newPosition)) {
+                    const entity = area.entities.get(newPosition);
+                    if (
+                        (entity !== "enemy")
+                            && (entity !== "destination")
+                    ) {
+                        enemyPositions[index] = newPosition;
+                        area.deleteEntity(position);
+                        area.addEntity(newPosition, "enemy");
+
+                        inPursuit = true;
+                    }
+                }
+            }
+        });
+
+        document.querySelector(".status").firstChild.nodeValue = (
+            inPursuit
+                ? "Enemy Pursuing"
+                : "Normal"
+        );
+
+        agentPosition = area.moveEntity(agentPosition, direction);
+
+        if (agentPosition.equals(destinationPosition)) {
+            onDestinationArrival();
+        }
     });
-}());
+
+    listenToPathfindingRequest(() => {
+        ensurePathIsCleared();
+
+        switch (area.pathfindingAlgorithm) {
+            case "Random Depth-First":
+                path = area.findDepthFirstPath(
+                    agentPosition,
+                    destinationPosition
+                );
+                break;
+            case "Directional Depth-First":
+                path = area.findDepthFirstPathDirectionally(
+                    agentPosition,
+                    destinationPosition
+                );
+                break;
+            case "Djikstra's Algorithm":
+                path = area.findDijkstraPath(
+                    agentPosition,
+                    destinationPosition
+                );
+                break;
+            case "A*":
+                path = area.findAStarPath(
+                    agentPosition,
+                    destinationPosition
+                );
+                break;
+            default:
+                fail(
+                    `invalid pathfinding algorithm selected: ${area.pathfindingAlgorithm}`
+                );
+                break;
+        }
+
+        if (path.length === 0) {
+            alert("No path was found.");
+        } else {
+            path.forEach(xy =>
+                area.canvasGrid.drawTile(xy, "navigated")
+            );
+        }
+    });
+
+    changeLevel();
+};
+
+main();
 
