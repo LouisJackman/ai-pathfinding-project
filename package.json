@@ -4,6 +4,7 @@
   "description": "A small pathfinding project done for an AI module.",
   "main": "main.js",
   "scripts": {
+    "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -17,6 +18,8 @@
   },
   "homepage": "https://github.com/LouisJackman/ai-pathfinding-project#readme",
   "dependencies": {
-    "prettier": "^1.17.1"
+    "prettier": "^1.17.1",
+    "tslib": "^1.10.0",
+    "typescript": "^3.7.5"
   }
 }

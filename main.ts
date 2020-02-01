@@ -2,61 +2,67 @@
 // Utility Functions
 //
 
-const { freeze, seal } = Object;
-
-export const fail = msg => {
-  throw new Error(`Error: ${msg}`);
-};
+const { freeze } = Object;
 
 export const emptyObject = freeze(Object.create(null));
 
-export const listKeys = xs => {
+export const listKeys = <T, U>(xs: Map<T, U>) => {
   const keys = [];
-  for (let key of xs.keys()) {
+  for (const key of xs.keys()) {
     keys.push(key);
   }
   return keys;
 };
 
-export const getContext = element => {
+export const getContext = (
+  element: HTMLCanvasElement
+): CanvasRenderingContext2D => {
   if (element === null) {
-    fail("the specified element was not found");
+    throw new Error("the specified element was not found");
   }
 
   const context = element.getContext("2d");
-  if (context === undefined) {
-    fail("2D context could not be acquired");
+  if (context === null) {
+    throw new Error("2D context could not be acquired");
   }
 
   return context;
 };
 
-export const isDefined = x => x !== undefined;
+export const definedOr = <T, U>(x: T | undefined, alternative: U) =>
+  x === undefined ? alternative : x;
 
-export const definedOr = (x, alternative) => (isDefined(x) ? x : alternative);
-
-export const identity = x => x;
-export const constant = x => () => x;
+export const identity = <T>(x: T) => x;
+export const constant = <T>(x: T) => () => x;
 
 const upKeyCode = 87;
 const downKeyCode = 83;
 const leftKeyCode = 65;
 const rightKeyCode = 68;
 
+enum Direction {
+  up,
+  down,
+  left,
+  right
+}
+
 export const keyCodes = (() => {
-  const codes = new Map();
-  codes.set(upKeyCode, "up");
-  codes.set(downKeyCode, "down");
-  codes.set(leftKeyCode, "left");
-  codes.set(rightKeyCode, "right");
+  const codes = new Map<number, Direction>();
+  codes.set(upKeyCode, Direction.up);
+  codes.set(downKeyCode, Direction.down);
+  codes.set(leftKeyCode, Direction.left);
+  codes.set(rightKeyCode, Direction.right);
   return codes;
 })();
 
-const listenToDirectionalInput = processDirection => {
+const listenToDirectionalInput = (
+  processDirection: (direction: Direction) => void
+) => {
   addEventListener("keydown", event => {
     const direction = keyCodes.get(event.keyCode);
 
-    if (isDefined(direction)) {
+    if (direction !== undefined) {
       processDirection(direction);
     }
   });
@@ -64,7 +70,7 @@ const listenToDirectionalInput = processDirection => {
 
 const letterPKeyCode = 80;
 
-const listenToPathfindingRequest = process => {
+const listenToPathfindingRequest = (process: () => void) => {
   addEventListener("keydown", event => {
     if (event.keyCode === letterPKeyCode) {
       process();
@@ -72,8 +78,16 @@ const listenToPathfindingRequest = process => {
   });
 };
 
+interface CoordinatesArgs {
+  x: number;
+  y: number;
+}
+
 export class Coordinates {
-  constructor({ x, y }) {
+  readonly x: number;
+  readonly y: number;
+
+  constructor({ x, y }: CoordinatesArgs) {
     this.x = x;
     this.y = y;
   }
@@ -82,19 +96,27 @@ export class Coordinates {
     return `${this.x},${this.y}`;
   }
 
-  equals(other) {
+  equals(other: Coordinates) {
     return this.x === other.x && this.y === other.y;
   }
 
   getNeighbours(getDiagonals = false) {
     const { x, y } = this;
 
-    const neighbours = [[x, y - 1], [x - 1, y], [x + 1, y], [x, y + 1]];
+    const neighbours = [
+      [x, y - 1],
+      [x - 1, y],
+      [x + 1, y],
+      [x, y + 1]
+    ];
 
     if (getDiagonals) {
-      [[x - 1, y - 1], [x + 1, y - 1], [x - 1, y + 1], [x + 1, y + 1]].forEach(
-        xy => neighbours.push(xy)
-      );
+      [
+        [x - 1, y - 1],
+        [x + 1, y - 1],
+        [x - 1, y + 1],
+        [x + 1, y + 1]
+      ].forEach(xy => neighbours.push(xy));
     }
 
     return freeze(
@@ -108,7 +130,7 @@ export class Coordinates {
     );
   }
 
-  difference({ x, y }) {
+  difference({ x, y }: Coordinates) {
     return new Coordinates({
       x: Math.abs(this.x - x),
       y: Math.abs(this.y - y)
@@ -119,28 +141,28 @@ export class Coordinates {
     return Math.sqrt(this.x * this.x + this.y * this.y);
   }
 
-  withinProximity(radius, xy) {
+  withinProximity(radius: number, xy: Coordinates) {
     return this.difference(xy).magnitude <= radius;
   }
 
-  move(direction) {
+  move(direction: Direction) {
     let { x, y } = this;
 
     switch (direction) {
-      case "left":
+      case Direction.left:
         --x;
         break;
-      case "right":
+      case Direction.right:
         ++x;
         break;
-      case "up":
+      case Direction.up:
         --y;
         break;
-      case "down":
+      case Direction.down:
         ++y;
         break;
       default:
-        fail("invalid direction");
+        throw new Error(`invalid direction: ${direction}`);
     }
 
     return new Coordinates({ x, y });
@@ -150,23 +172,32 @@ export class Coordinates {
 export const createCoordinatesFromString = (() => {
   const cache = new Map();
 
-  return string => {
+  return (s: string) => {
     let result;
-    if (cache.has(string)) {
-      result = cache.get(string);
+    if (cache.has(s)) {
+      result = cache.get(s);
     } else {
-      const [xString, yString] = string.split(",");
+      const [xString, yString] = s.split(",");
       result = new Coordinates({
         x: Number.parseInt(xString),
         y: Number.parseInt(yString)
       });
-      cache.set(string, result);
+      cache.set(s, result);
     }
     return result;
   };
 })();
 
-const createColors = ({
+enum Tile {
+  empty,
+  wall,
+  agent,
+  destination,
+  enemy,
+  navigated
+}
+
+const createColorGetter = ({
   empty = "black",
   wall = "#ccc",
   agent = "blue",
@@ -174,26 +205,50 @@ const createColors = ({
   enemy = "red",
   navigated = "yellow"
 }) => {
-  const colors = new Map();
-  colors.set("empty", empty);
-  colors.set("wall", wall);
-  colors.set("agent", agent);
-  colors.set("destination", destination);
-  colors.set("enemy", enemy);
-  colors.set("navigated", navigated);
-  return colors;
+  const colors = new Map<Tile, string>();
+  colors.set(Tile.empty, empty);
+  colors.set(Tile.wall, wall);
+  colors.set(Tile.agent, agent);
+  colors.set(Tile.destination, destination);
+  colors.set(Tile.enemy, enemy);
+  colors.set(Tile.navigated, navigated);
+
+  return (tile: Tile): string => {
+    const color = colors.get(tile);
+    if (color === undefined) {
+      console.log(colors);
+      throw new Error(`tile type ${tile} unknown`);
+    }
+    return color;
+  };
+};
+
+const querySelectorOrThrow = (query: string): Element => {
+  const element = document.querySelector(query);
+  if (element === null) {
+    throw new Error(`element "${query}" not found`);
+  }
+  return element;
 };
 
 export class CanvasGrid {
+  readonly cellWidth: number;
+  readonly cellHeight: number;
+
+  private readonly getColor: (tile: Tile) => string;
+  private readonly context: CanvasRenderingContext2D;
+  private readonly width: number;
+  private readonly height: number;
+
   constructor({
     colors = emptyObject,
-    context = getContext(document.querySelector(".area")),
+    context = getContext(querySelectorOrThrow(".area") as HTMLCanvasElement),
     cellWidth = 20,
     cellHeight = 20,
     width = defaultAreaWidth,
     height = defaultAreaHeight
   }) {
-    this.colors = createColors(colors);
+    this.getColor = createColorGetter(colors);
     this.context = context;
     this.cellWidth = cellWidth;
     this.cellHeight = cellHeight;
@@ -203,35 +258,49 @@ export class CanvasGrid {
     this.clear();
   }
 
-  drawTile({ x, y }, tileType) {
+  drawTile({ x, y }: Coordinates, tile: Tile) {
     const { context, cellWidth, cellHeight } = this;
 
-    context.fillStyle = this.colors.get(tileType);
+    context.fillStyle = this.getColor(tile);
     context.fillRect(cellWidth * x, cellHeight * y, cellWidth, cellHeight);
   }
 
   clear() {
-    const { context, cellWidth, cellHeight, width, height, colors } = this;
+    const { context, cellWidth, cellHeight, width, height, getColor } = this;
 
-    context.fillStyle = colors.get("empty");
+    context.fillStyle = getColor(Tile.empty);
     context.fillRect(0, 0, cellWidth * width, cellHeight * height);
   }
 }
 
+interface AreaArgs {
+  width?: number;
+  height?: number;
+  allowDiagonalsInPaths?: false;
+  pathfindingAlgorithm?: string;
+  canvasGrid?: CanvasGrid;
+}
+
 export class Area {
+  readonly canvasGrid: CanvasGrid;
+  readonly entities: Map<string, Tile>;
+  allowDiagonalsInPaths: boolean;
+  pathfindingAlgorithm?: string;
+
+  private readonly width: number;
+  private readonly height: number;
+
   constructor({
     width = defaultAreaWidth,
     height = defaultAreaHeight,
     allowDiagonalsInPaths = false,
     pathfindingAlgorithm = "Djikstra's Algorithm",
-    entityToSet = "Wall",
     canvasGrid: maybeCanvasGrid
-  }) {
+  }: AreaArgs) {
     this.width = width;
     this.height = height;
     this.allowDiagonalsInPaths = allowDiagonalsInPaths;
     this.pathfindingAlgorithm = pathfindingAlgorithm;
-    this.entityToSet = entityToSet;
 
     this.canvasGrid = definedOr(
       maybeCanvasGrid,
@@ -244,36 +313,37 @@ export class Area {
     this.entities = new Map();
   }
 
-  addEntity(xy, entityType) {
+  addEntity(xy: Coordinates, entityType: Tile) {
     const key = String(xy);
 
     if (this.entities.has(key)) {
-      fail("an added entity cannot overlap an existing one");
+      throw new Error("an added entity cannot overlap an existing one");
     }
 
-    if (entityType !== "empty") {
+    if (entityType !== Tile.empty) {
       this.entities.set(key, entityType);
     }
 
     this.canvasGrid.drawTile(xy, entityType);
   }
 
-  deleteEntity(xy) {
+  deleteEntity(xy: Coordinates) {
     this.entities.delete(String(xy));
-    this.canvasGrid.drawTile(xy, "empty");
+    this.canvasGrid.drawTile(xy, Tile.empty);
   }
 
-  areCoordinatesValid(xy) {
+  areCoordinatesValid(xy: Coordinates) {
     return 0 <= xy.x && xy.x < this.width && 0 <= xy.y && xy.y < this.height;
   }
 
-  isValidAgentPosition(xy) {
+  isValidAgentPosition(xy: Coordinates) {
     return (
-      this.areCoordinatesValid(xy) && this.entities.get(String(xy)) !== "wall"
+      this.areCoordinatesValid(xy) &&
+      this.entities.get(String(xy)) !== Tile.wall
     );
   }
 
-  moveEntity(xy, direction) {
+  moveEntity(xy: Coordinates, direction: Direction) {
     const newCoordinates = xy.move(direction);
 
     let result;
@@ -283,11 +353,11 @@ export class Area {
       const oldKey = String(xy);
       const key = String(newCoordinates);
 
-      entities.set(String(key), entities.get(oldKey));
+      entities.set(String(key), entities.get(oldKey)!);
       entities.delete(oldKey);
 
-      this.canvasGrid.drawTile(xy, "empty");
-      this.canvasGrid.drawTile(newCoordinates, entities.get(key));
+      this.canvasGrid.drawTile(xy, Tile.empty);
+      this.canvasGrid.drawTile(newCoordinates, entities.get(key)!);
 
       result = newCoordinates;
     } else {
@@ -296,23 +366,26 @@ export class Area {
     return result;
   }
 
-  addEntitiesFromStrings(strings, args) {
+  addEntitiesFromStrings(strings: string[]) {
     strings.forEach((string, y) => {
       string.split("").forEach((character, x) => {
         const xy = new Coordinates({ x, y });
         const tile = characterTiles.get(character);
+        if (tile === undefined) {
+          throw new Error("unknown character tile: " + character);
+        }
         this.addEntity(xy, tile);
       });
     });
   }
 
   findDepthFirstPath(
-    source,
-    destination,
-    visitedNodes = new Set(),
-    sortNeighbours = identity,
-    navigated = []
-  ) {
+    source: Coordinates,
+    destination: Coordinates,
+    visitedNodes = new Set<string>(),
+    sortNeighbours: (neighbours: Coordinates[]) => Coordinates[] = identity,
+    navigated: Coordinates[] = []
+  ): Coordinates[] {
     navigated.push(source);
 
     if (source.equals(destination)) {
@@ -338,7 +411,7 @@ export class Area {
       return [];
     }
 
-    for (let neighbour of unvisitedNeighbours) {
+    for (const neighbour of unvisitedNeighbours) {
       const path = this.findDepthFirstPath(
         neighbour,
         destination,
@@ -354,7 +427,11 @@ export class Area {
     return [];
   }
 
-  findDepthFirstPathDirectionally(source, destination, maybeVisitedNodes) {
+  findDepthFirstPathDirectionally(
+    source: Coordinates,
+    destination: Coordinates,
+    maybeVisitedNodes: Set<string> = new Set()
+  ) {
     return this.findDepthFirstPath(
       source,
       destination,
@@ -370,14 +447,18 @@ export class Area {
     );
   }
 
-  findDijkstraPath(source, destination, getHeuristic = constant(0)) {
+  findDijkstraPath(
+    source: Coordinates,
+    destination: Coordinates,
+    getHeuristic: (neighbour: Coordinates) => number = constant(0)
+  ) {
     const unvisitedNodes = new Map();
     const distances = new Map();
     const previousDistances = new Map();
     const navigated = [];
-    let current;
+    let current: Coordinates;
 
-    const compareDistances = (a, b) => {
+    const compareDistances = (a: Coordinates, b: Coordinates) => {
       const aKey = String(a);
       const bKey = String(b);
 
@@ -388,7 +469,7 @@ export class Area {
         : 0;
     };
 
-    const updateDistance = neighbour => {
+    const updateDistance = (neighbour: Coordinates) => {
       const distance =
         distances.get(String(current)) + 1 + getHeuristic(neighbour);
 
@@ -443,7 +524,7 @@ export class Area {
     return [];
   }
 
-  findAStarPath(source, destination) {
+  findAStarPath(source: Coordinates, destination: Coordinates) {
     return this.findDijkstraPath(
       source,
       destination,
@@ -463,12 +544,12 @@ export const defaultAreaWidth = 30;
 export const defaultAreaHeight = 20;
 
 export const characterTiles = (() => {
-  const tiles = new Map();
-  tiles.set("#", "wall");
-  tiles.set(" ", "empty");
-  tiles.set("O", "agent");
-  tiles.set("!", "enemy");
-  tiles.set("X", "destination");
+  const tiles = new Map<string, Tile>();
+  tiles.set("#", Tile.wall);
+  tiles.set(" ", Tile.empty);
+  tiles.set("O", Tile.agent);
+  tiles.set("!", Tile.enemy);
+  tiles.set("X", Tile.destination);
   return tiles;
 })();
 
@@ -603,30 +684,32 @@ export const levels = [
 //
 
 const main = () => {
-  let area;
-  let agentPosition;
-  let enemyPositions;
-  let destinationPosition;
-  let path;
+  let area: Area;
+  let agentPosition: Coordinates;
+  let enemyPositions: Coordinates[];
+  let destinationPosition: Coordinates;
+  let path: Coordinates[] | undefined;
   let currentLevelIndex = -1;
   let level;
 
   const ensurePathIsCleared = () => {
-    if (isDefined(path)) {
-      path.forEach(xy => area.canvasGrid.drawTile(xy, "empty"));
+    if (path !== undefined) {
+      path.forEach(xy => area.canvasGrid.drawTile(xy, Tile.empty));
       path = undefined;
     }
 
     enemyPositions.forEach(position =>
-      area.canvasGrid.drawTile(position, "enemy")
+      area.canvasGrid.drawTile(position, Tile.enemy)
     );
   };
 
   const resetArea = () => {
+    const algorithmSelection = querySelectorOrThrow(
+      ".pathfinding-algorithm select"
+    ) as HTMLInputElement;
+
     area = new Area({
-      pathfindingAlgorithm: document.querySelector(
-        ".pathfinding-algorithm select"
-      ).value
+      pathfindingAlgorithm: algorithmSelection.value
     });
 
     level = levels[currentLevelIndex];
@@ -635,12 +718,15 @@ const main = () => {
     destinationPosition = level.destination;
 
     area.addEntitiesFromStrings(level.layout);
-    area.addEntity(agentPosition, "agent");
-    area.addEntity(destinationPosition, "destination");
+    area.addEntity(agentPosition, Tile.agent);
+    area.addEntity(destinationPosition, Tile.destination);
 
-    enemyPositions.forEach(position => area.addEntity(position, "enemy"));
+    enemyPositions.forEach(position => area.addEntity(position, Tile.enemy));
 
-    document.querySelector(".status").firstChild.nodeValue = "Normal";
+    const statusText = document.querySelector(
+      ".status"
+    ) as HTMLTableCellElement;
+    statusText.firstChild!.nodeValue = "Normal";
   };
 
   const changeLevel = () => {
@@ -662,23 +748,21 @@ const main = () => {
     resetArea();
   };
 
-  document
-    .querySelector(".allow-diagonals-in-paths input")
-    .addEventListener("click", event => {
-      area.allowDiagonalsInPaths = event.target.checked;
-    });
+  querySelectorOrThrow(".allow-diagonals-in-paths input").addEventListener(
+    "click",
+    event => {
+      const target = event.target as HTMLInputElement;
+      area.allowDiagonalsInPaths = target.checked;
+    }
+  );
 
-  document
-    .querySelector(".pathfinding-algorithm select")
-    .addEventListener("change", event => {
-      area.pathfindingAlgorithm = event.target.value;
-    });
-
-  document
-    .querySelector(".entity-to-set select")
-    .addEventListener("change", event => {
-      area.entityToSet = event.target.value;
-    });
+  querySelectorOrThrow(".pathfinding-algorithm select").addEventListener(
+    "change",
+    event => {
+      const target = event.target as HTMLInputElement;
+      area.pathfindingAlgorithm = target.value;
+    }
+  );
 
   const entityUiNames = new Map();
   entityUiNames.set("Wall", "wall");
@@ -687,33 +771,16 @@ const main = () => {
   entityUiNames.set("Destination (Move)", "destination");
   entityUiNames.set("Agent (Move)", "agent");
 
-  const entityToSetElement = document.querySelector(".entity-to-set select");
+  const entityToSetElement = document.querySelector(
+    ".entity-to-set select"
+  ) as HTMLInputElement;
 
-  document.querySelector(".area").addEventListener("mousedown", event => {
+  const canvasElement = querySelectorOrThrow(".area") as HTMLCanvasElement;
+  canvasElement.addEventListener("mousedown", (event: MouseEvent) => {
     const entityType = entityUiNames.get(entityToSetElement.value);
 
-    let baseX;
-    let baseY;
-    if (isDefined(event.x)) {
-      baseX = event.x;
-      baseY = event.y;
-    } else {
-      baseX =
-        event.clientX +
-        document.body.scrollLeft +
-        document.documentElement.scrollLeft;
-      baseY =
-        event.clientY +
-        document.body.scrollTop +
-        document.documentElement.scrollTop;
-    }
-
-    const x = Math.floor(
-      (baseX - event.target.offsetLeft) / area.canvasGrid.cellWidth
-    );
-    const y = Math.floor(
-      (baseY - event.target.offsetTop) / area.canvasGrid.cellHeight
-    );
+    const x = Math.floor(event.offsetX / area.canvasGrid.cellWidth);
+    const y = Math.floor(event.offsetY / area.canvasGrid.cellHeight);
 
     const xy = new Coordinates({ x, y });
 
@@ -747,12 +814,12 @@ const main = () => {
       ) {
         const newPosition = area.findDijkstraPath(agentPosition, position)[0];
 
-        if (isDefined(newPosition)) {
+        if (newPosition !== undefined) {
           const entity = area.entities.get(newPosition);
-          if (entity !== "enemy" && entity !== "destination") {
+          if (entity !== Tile.enemy && entity !== Tile.destination) {
             enemyPositions[index] = newPosition;
             area.deleteEntity(position);
-            area.addEntity(newPosition, "enemy");
+            area.addEntity(newPosition, Tile.enemy);
 
             inPursuit = true;
           }
@@ -760,7 +827,7 @@ const main = () => {
       }
     });
 
-    document.querySelector(".status").firstChild.nodeValue = inPursuit
+    querySelectorOrThrow(".status").firstChild!.nodeValue = inPursuit
       ? "Enemy Pursuing"
       : "Normal";
 
@@ -791,7 +858,7 @@ const main = () => {
         path = area.findAStarPath(agentPosition, destinationPosition);
         break;
       default:
-        fail(
+        throw new Error(
           `invalid pathfinding algorithm selected: ${area.pathfindingAlgorithm}`
         );
         break;
@@ -800,7 +867,7 @@ const main = () => {
     if (path.length === 0) {
       alert("No path was found.");
     } else {
-      path.forEach(xy => area.canvasGrid.drawTile(xy, "navigated"));
+      path.forEach(xy => area.canvasGrid.drawTile(xy, Tile.navigated));
     }
   });
 
