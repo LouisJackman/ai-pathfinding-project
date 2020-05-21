@@ -1,7 +1,7 @@
 # AI Pathfinding Project
 
 A small pathfinding project done for an AI module. View a
-[demo](https://volatilethunk.com/theme/projects/ai-pathfinding-project/index.htm).
+[demo](https://volatilethunk.com/projects/ai-pathfinding-project/index.html).
 
 This repository is hosted [on
 GitLab.com](https://gitlab.com/louis.jackman/ai-pathfinding-project). If you're
