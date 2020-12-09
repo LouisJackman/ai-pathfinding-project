@@ -5,8 +5,12 @@
 A small pathfinding project done for an AI module. View a
 [demo](https://volatilethunk.com/projects/ai-pathfinding-project/index.html).
 
-This repository is hosted [on
-GitLab.com](https://gitlab.com/louis.jackman/ai-pathfinding-project). If you're
-seeing this on GitHub, you're on the official GitHub mirror. [Go to
-GitLab](https://gitlab.com/louis.jackman/ai-pathfinding-project) to contribute.
+This repository is currently hosted [on
+GitLab.com](https://gitlab.com/louis.jackman/ai-pathfinding-project). Official
+mirrors exist on
+[SourceHut](https://git.sr.ht/~louisjackman/ai-pathfinding-project) and
+[GitHub](https://github.com/LouisJackman/ai-pathfinding-project). At the
+moment, GitLab is still the official hub for contributions such as PRs and
+issues.
+
 
