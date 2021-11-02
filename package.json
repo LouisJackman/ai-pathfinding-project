@@ -1,6 +1,6 @@
 {
   "name": "ai-pathfinding-project",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A small pathfinding project done for an AI module.",
   "main": "main.js",
   "scripts": {
@@ -9,17 +9,19 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LouisJackman/ai-pathfinding-project.git"
+    "url": "git+https://gitlab.com/louis.jackman/ai-pathfinding-project.git"
   },
   "author": "Louis Jackman",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/LouisJackman/ai-pathfinding-project/issues"
+    "url": "https://gitlab.com/louis.jackman/ai-pathfinding-project/-/issues"
   },
-  "homepage": "https://github.com/LouisJackman/ai-pathfinding-project#readme",
+  "homepage": "https://gitlab.com/louis.jackman/ai-pathfinding-project/-/blob/master/README.md",
   "dependencies": {
-    "prettier": "^1.17.1",
-    "tslib": "^1.10.0",
-    "typescript": "^3.7.5"
+    "tslib": "^2.3.1"
+  },
+  "devDependencies": {
+    "prettier": "^2.4.1",
+    "typescript": "^4.4.4"
   }
 }
