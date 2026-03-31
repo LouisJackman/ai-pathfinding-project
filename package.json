@@ -5,6 +5,7 @@
   "browser": "main.js",
   "scripts": {
     "build": "tsc",
+    "test": "npm run build && node --test main.test.mjs",
     "publish": "npm run build && tar -cJf ai-pathfinding-project.tar.xz index.html main.js style.css"
   },
   "repository": {
