@@ -10,14 +10,6 @@ const unreachable = (): never => {
   throw new Error("unreachable code unexpectedly reached");
 };
 
-export const listKeys = <T, U>(xs: Map<T, U>) => {
-  const keys = [];
-  for (const key of xs.keys()) {
-    keys.push(key);
-  }
-  return keys;
-};
-
 export const getContext = (
   element: HTMLCanvasElement
 ): CanvasRenderingContext2D => {
@@ -158,7 +150,7 @@ export class Coordinates {
         ++y;
         break;
       default:
-        throw new Error(`invalid direction: ${direction}`);
+        return unreachable();
     }
 
     return new Coordinates({ x, y });
@@ -174,7 +166,7 @@ export const createCoordinatesFromString = (() => {
       result = cache.get(s);
     } else {
       const [xString, yString] = s.split(",");
-      if (xString == undefined || yString === undefined) {
+      if (xString === undefined || yString === undefined) {
         unreachable();
       } else {
         result = new Coordinates({
@@ -290,7 +282,7 @@ type AreaArgs = {
   readonly width?: number;
   readonly height?: number;
   readonly allowDiagonalsInPaths?: false;
-  readonly pathfindingAlgorithm?: string;
+  readonly pathfindingAlgorithm?: PathfindingAlgorithm;
   readonly canvasGrid?: CanvasGrid;
 };
 
@@ -298,7 +290,7 @@ export class Area {
   readonly canvasGrid: CanvasGrid;
   readonly entities: Map<string, Tile>;
   allowDiagonalsInPaths: boolean;
-  pathfindingAlgorithm?: string;
+  pathfindingAlgorithm?: PathfindingAlgorithm;
 
   readonly #width: number;
   readonly #height: number;
@@ -307,7 +299,7 @@ export class Area {
     width = defaultAreaDimensions.width,
     height = defaultAreaDimensions.height,
     allowDiagonalsInPaths = false,
-    pathfindingAlgorithm = "Djikstra's Algorithm",
+    pathfindingAlgorithm = pathfindingAlgorithms[0],
     canvasGrid: maybeCanvasGrid,
   }: AreaArgs) {
     this.#width = width;
@@ -365,11 +357,16 @@ export class Area {
       const oldKey = String(xy);
       const key = String(newCoordinates);
 
-      entities.set(String(key), entities.get(oldKey)!);
+      const oldEntity = entities.get(oldKey);
+      if (oldEntity === undefined) {
+        throw new Error(`no entity at ${oldKey} to move`);
+      }
+
+      entities.set(key, oldEntity);
       entities.delete(oldKey);
 
       this.canvasGrid.drawTile(xy, "empty");
-      this.canvasGrid.drawTile(newCoordinates, entities.get(key)!);
+      this.canvasGrid.drawTile(newCoordinates, oldEntity);
 
       result = newCoordinates;
     } else {
@@ -475,10 +472,10 @@ export class Area {
     destination: Coordinates,
     getHeuristic: (neighbour: Coordinates) => number = constant(0)
   ) {
-    const unvisitedNodes = new Map();
-    const distances = new Map();
-    const previousDistances = new Map();
-    const navigated = [];
+    const unvisitedNodes = new Map<string, true>();
+    const distances = new Map<string, number>();
+    const previousDistances = new Map<string, Coordinates>();
+    const navigated: Coordinates[] = [];
     let current: Coordinates;
 
     const compareDistances = (a: Coordinates, b: Coordinates) => {
@@ -520,7 +517,7 @@ export class Area {
     }
 
     while (unvisitedNodes.size !== 0) {
-      const sorted = listKeys(unvisitedNodes)
+      const sorted = [...unvisitedNodes.keys()]
         .sort(compareDistances)
         .map((key) => createCoordinatesFromString(key));
 
@@ -566,6 +563,15 @@ export class Area {
 //
 
 export const enemyDetectionProximity = 6;
+
+export const pathfindingAlgorithms = freeze([
+  "Dijkstra's Algorithm",
+  "A*",
+  "Depth-First",
+  "Directional Depth-First",
+] as const);
+
+type PathfindingAlgorithm = (typeof pathfindingAlgorithms)[number];
 
 const defaultAreaDimensions = freeze({
   width: 30,
@@ -730,6 +736,16 @@ const main = () => {
   let currentLevelIndex = -1;
   let level;
 
+  const algorithmSelect = querySelectorOrThrow(
+    ".pathfinding-algorithm select"
+  ) as HTMLSelectElement;
+
+  for (const name of pathfindingAlgorithms) {
+    const option = document.createElement("option");
+    option.textContent = name;
+    algorithmSelect.appendChild(option);
+  }
+
   const ensurePathIsCleared = () => {
     if (path !== undefined) {
       for (const xy of path) {
@@ -744,12 +760,9 @@ const main = () => {
   };
 
   const resetArea = () => {
-    const algorithmSelection = querySelectorOrThrow(
-      ".pathfinding-algorithm select"
-    ) as HTMLInputElement;
-
     area = new Area({
-      pathfindingAlgorithm: algorithmSelection.value,
+      pathfindingAlgorithm:
+        algorithmSelect.value as PathfindingAlgorithm,
     });
 
     level = levels[currentLevelIndex];
@@ -771,7 +784,10 @@ const main = () => {
       const statusText = document.querySelector(
         ".status"
       ) as HTMLTableCellElement;
-      statusText.firstChild!.nodeValue = "Normal";
+      const firstChild = statusText.firstChild;
+      if (firstChild !== null) {
+        firstChild.nodeValue = "Normal";
+      }
     }
   };
 
@@ -802,15 +818,12 @@ const main = () => {
     }
   );
 
-  querySelectorOrThrow(".pathfinding-algorithm select").addEventListener(
-    "change",
-    (event) => {
-      const target = event.target as HTMLInputElement;
-      area.pathfindingAlgorithm = target.value;
-    }
-  );
+  algorithmSelect.addEventListener("change", () => {
+    area.pathfindingAlgorithm =
+      algorithmSelect.value as PathfindingAlgorithm;
+  });
 
-  const entityUiNames = new Map();
+  const entityUiNames = new Map<string, Tile>();
   entityUiNames.set("Wall", "wall");
   entityUiNames.set("Empty", "empty");
   entityUiNames.set("Enemy", "enemy");
@@ -873,9 +886,10 @@ const main = () => {
       }
     });
 
-    querySelectorOrThrow(".status").firstChild!.nodeValue = inPursuit
-      ? "Enemy Pursuing"
-      : "Normal";
+    const statusNode = querySelectorOrThrow(".status").firstChild;
+    if (statusNode !== null) {
+      statusNode.nodeValue = inPursuit ? "Enemy Pursuing" : "Normal";
+    }
 
     agentPosition = area.moveEntity(agentPosition, direction);
 
@@ -888,7 +902,7 @@ const main = () => {
     ensurePathIsCleared();
 
     switch (area.pathfindingAlgorithm) {
-      case "Random Depth-First":
+      case "Depth-First":
         path = area.findDepthFirstPath(agentPosition, destinationPosition);
         break;
       case "Directional Depth-First":
@@ -897,7 +911,7 @@ const main = () => {
           destinationPosition
         );
         break;
-      case "Djikstra's Algorithm":
+      case "Dijkstra's Algorithm":
         path = area.findDijkstraPath(agentPosition, destinationPosition);
         break;
       case "A*":
@@ -921,4 +935,6 @@ const main = () => {
   changeLevel();
 };
 
-main();
+if (typeof document !== "undefined") {
+  main();
+}
