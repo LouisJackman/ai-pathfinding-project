@@ -12,6 +12,7 @@ import {
   keyCodes,
   CanvasGrid,
   Area,
+  moveAgent,
 } from "./main.js";
 
 //
@@ -120,6 +121,24 @@ describe("characterTiles", () => {
 
   it("is frozen", () => {
     assert.equal(Object.isFrozen(characterTiles), true);
+  });
+});
+
+describe("moveAgent", () => {
+  it("kills the player instead of overwriting an enemy tile", () => {
+    const area = createArea();
+    const agentPosition = new Coordinates({ x: 1, y: 1 });
+    const enemyPosition = new Coordinates({ x: 2, y: 1 });
+
+    area.addEntity(agentPosition, "agent");
+    area.addEntity(enemyPosition, "enemy");
+
+    const result = moveAgent(area, agentPosition, "right");
+
+    assert.equal(result.didDie, true);
+    assert.equal(result.agentPosition, agentPosition);
+    assert.equal(area.getEntity(agentPosition), "agent");
+    assert.equal(area.getEntity(enemyPosition), "enemy");
   });
 });
 
