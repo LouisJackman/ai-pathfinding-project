@@ -337,6 +337,10 @@ export class Area {
     this.canvasGrid.drawTile(xy, "empty");
   }
 
+  getEntity(xy: Coordinates) {
+    return this.entities.get(String(xy));
+  }
+
   areCoordinatesValid(xy: Coordinates) {
     return 0 <= xy.x && xy.x < this.#width && 0 <= xy.y && xy.y < this.#height;
   }
@@ -563,6 +567,25 @@ export class Area {
 //
 
 export const enemyDetectionProximity = 6;
+
+export const moveAgent = (
+  area: Area,
+  agentPosition: Coordinates,
+  direction: Direction
+) => {
+  const nextPosition = agentPosition.move(direction);
+  if (area.getEntity(nextPosition) === "enemy") {
+    return {
+      didDie: true,
+      agentPosition,
+    };
+  }
+
+  return {
+    didDie: false,
+    agentPosition: area.moveEntity(agentPosition, direction),
+  };
+};
 
 export const pathfindingAlgorithms = freeze([
   "Dijkstra's Algorithm",
@@ -891,7 +914,13 @@ const main = () => {
       statusNode.nodeValue = inPursuit ? "Enemy Pursuing" : "Normal";
     }
 
-    agentPosition = area.moveEntity(agentPosition, direction);
+    const movement = moveAgent(area, agentPosition, direction);
+    if (movement.didDie) {
+      onDeath();
+      return;
+    }
+
+    agentPosition = movement.agentPosition;
 
     if (agentPosition.equals(destinationPosition)) {
       onDestinationArrival();
