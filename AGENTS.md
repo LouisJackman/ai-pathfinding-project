@@ -1,6 +1,9 @@
-# AI Pathfinding Project -- AI Coding Agent Instructions
+# ai-pathfinding-project - AI Coding Agent Instructions
 
-This file provides guidance to AI coding agents when working with code in this repository.
+Canonical instructions for AI coding agents working in this repository. Tool-specific entrypoints symlink to this file where supported:
+- `CLAUDE.md`
+- `.cursorrules`
+- `.github/copilot-instructions.md`
 
 ## Project Overview
 
