@@ -31,7 +31,7 @@ release:
   script:
     - apt-get update
     - apt-get install --yes --no-install-recommends ca-certificates curl
-    - curl --fail --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file ai-pathfinding-project.tar.xz "$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/$CI_PROJECT_NAME/$CI_COMMIT_TAG/ai-pathfinding-project.tar.xz"
+    - 'curl --fail --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file ai-pathfinding-project.tar.xz "$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/$CI_PROJECT_NAME/$CI_COMMIT_TAG/ai-pathfinding-project.tar.xz"'
   release:
     tag_name: $CI_COMMIT_TAG
     name: Release $CI_COMMIT_TAG
