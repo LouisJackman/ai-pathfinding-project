@@ -307,13 +307,12 @@ export class Area {
     this.allowDiagonalsInPaths = allowDiagonalsInPaths;
     this.pathfindingAlgorithm = pathfindingAlgorithm;
 
-    this.canvasGrid = definedOr(
-      maybeCanvasGrid,
+    this.canvasGrid =
+      maybeCanvasGrid ??
       new CanvasGrid({
         height,
         width,
-      })
-    );
+      });
 
     this.entities = new Map();
   }
@@ -480,28 +479,18 @@ export class Area {
     const distances = new Map<string, number>();
     const previousDistances = new Map<string, Coordinates>();
     const navigated: Coordinates[] = [];
-    let current: Coordinates;
 
     const compareDistances = (a: Coordinates, b: Coordinates) => {
       const aKey = String(a);
       const bKey = String(b);
+      const aDistance = distances.get(aKey);
+      const bDistance = distances.get(bKey);
 
-      return distances.get(aKey) < distances.get(bKey)
-        ? -1
-        : distances.get(bKey) < distances.get(aKey)
-        ? 1
-        : 0;
-    };
-
-    const updateDistance = (neighbour: Coordinates) => {
-      const distance =
-        distances.get(String(current)) + 1 + getHeuristic(neighbour);
-
-      const neighbourKey = String(neighbour);
-      if (distance < distances.get(neighbourKey)) {
-        previousDistances.set(neighbourKey, current);
-        distances.set(neighbourKey, distance);
+      if (aDistance === undefined || bDistance === undefined) {
+        return unreachable();
       }
+
+      return aDistance < bDistance ? -1 : bDistance < aDistance ? 1 : 0;
     };
 
     const sourceKey = String(source);
@@ -522,22 +511,42 @@ export class Area {
 
     while (unvisitedNodes.size !== 0) {
       const sorted = [...unvisitedNodes.keys()]
-        .sort(compareDistances)
-        .map((key) => createCoordinatesFromString(key));
+        .map(createCoordinatesFromString)
+        .sort(compareDistances);
 
-      current = sorted[0];
+      const current = sorted[0];
+      if (current === undefined) {
+        return unreachable();
+      }
       const currentKey = String(current);
+
+      const updateDistance = (neighbour: Coordinates) => {
+        const currentDistance = distances.get(currentKey);
+        const neighbourKey = String(neighbour);
+        const neighbourDistance = distances.get(neighbourKey);
+
+        if (currentDistance === undefined || neighbourDistance === undefined) {
+          return;
+        }
+
+        const distance = currentDistance + 1 + getHeuristic(neighbour);
+        if (distance < neighbourDistance) {
+          previousDistances.set(neighbourKey, current);
+          distances.set(neighbourKey, distance);
+        }
+      };
 
       unvisitedNodes.delete(currentKey);
 
       if (current.equals(destination)) {
         let previous = previousDistances.get(currentKey);
-        let previousKey = String(previous);
 
-        while (previousDistances.has(previousKey)) {
+        while (
+          previous !== undefined &&
+          previousDistances.has(String(previous))
+        ) {
           navigated.push(previous);
-          previous = previousDistances.get(previousKey);
-          previousKey = String(previous);
+          previous = previousDistances.get(String(previous));
         }
         return navigated;
       }
@@ -866,21 +875,23 @@ const main = () => {
 
     const xy = new Coordinates({ x, y });
 
-    area.deleteEntity(xy);
-    switch (entityType) {
-      case "destination":
-        area.deleteEntity(destinationPosition);
-        destinationPosition = xy;
-        break;
-      case "agent":
-        area.deleteEntity(agentPosition);
-        agentPosition = xy;
-        break;
-      case "enemy":
-        enemyPositions.push(xy);
-        break;
+    if (entityType !== undefined) {
+      area.deleteEntity(xy);
+      switch (entityType) {
+        case "destination":
+          area.deleteEntity(destinationPosition);
+          destinationPosition = xy;
+          break;
+        case "agent":
+          area.deleteEntity(agentPosition);
+          agentPosition = xy;
+          break;
+        case "enemy":
+          enemyPositions.push(xy);
+          break;
+      }
+      area.addEntity(xy, entityType);
     }
-    area.addEntity(xy, entityType);
   });
 
   listenToDirectionalInput((direction) => {
@@ -897,7 +908,7 @@ const main = () => {
         const newPosition = area.findDijkstraPath(agentPosition, position)[0];
 
         if (newPosition !== undefined) {
-          const entity = area.entities.get(newPosition);
+          const entity = area.getEntity(newPosition);
           if (entity !== "enemy" && entity !== "destination") {
             enemyPositions[index] = newPosition;
             area.deleteEntity(position);
