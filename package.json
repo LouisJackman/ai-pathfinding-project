@@ -1,6 +1,6 @@
 {
   "name": "ai-pathfinding-project",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A small pathfinding project done for an AI module.",
   "browser": "main.js",
   "scripts": {
