@@ -1,9 +1,10 @@
 # ai-pathfinding-project - AI Coding Agent Instructions
 
-Canonical instructions for AI coding agents working in this repository. Tool-specific entrypoints symlink to this file where supported:
-- `CLAUDE.md`
-- `.cursorrules`
-- `.github/copilot-instructions.md`
+`AGENTS.md` is the single source of truth for AI coding agents working in this
+repository. The only compatibility entrypoint is
+`.github/copilot-instructions.md`, for Copilot surfaces that do not read
+`AGENTS.md` natively. Do not add `CLAUDE.md` or `.cursorrules`; Claude Code and
+Cursor read `AGENTS.md`.
 
 ## Project Overview
 
@@ -21,11 +22,13 @@ A web-based interactive game demonstrating pathfinding algorithms (DFS, directio
 
 To test locally: run `npm run build` then open `index.html` in a browser. There is no dev server or watch mode.
 
-**No test runner is configured.** There are no unit or integration tests.
+There are no test files. The `test` script in `package.json` points at the removed
+`main.test.mjs`, so it currently cannot run.
 
 ## Architecture
 
-All application logic lives in a single file: `main.ts` (~925 lines). There is no module splitting.
+All application logic lives in a single file: `main.ts`. There is no module
+splitting.
 
 ### Key types and classes
 
@@ -44,7 +47,7 @@ All application logic lives in a single file: `main.ts` (~925 lines). There is n
 
 ### Game loop and levels
 
-- `main()` (line ~724) initialises state, binds keyboard/mouse events, and starts the game loop.
+- `main()` initialises state, binds keyboard/mouse events, and starts the game loop.
 - 4 predefined levels defined as ASCII art strings (`#` = wall, `O` = agent, `!` = enemy, `X` = destination).
 - Enemies pursue the agent using Dijkstra's when within detection radius of 6 cells.
 - WASD to move, P to visualise the selected pathfinding algorithm, click to place/remove tiles.
@@ -66,4 +69,6 @@ No linter configuration file exists. The GitLab CI pipeline runs an ESLint-based
 
 ## CI/CD
 
-GitLab CI (`.gitlab-ci.yml`) runs a SAST security scan using ESLint. No build or test stages in CI.
+GitLab CI (`.gitlab-ci.yml`) runs `npm ci` and `npm run publish` in the build
+stage, uploads the release archive, and creates a release for protected tags.
+It includes the GitLab SAST template; there is no test stage.

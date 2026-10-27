@@ -1,6 +1,6 @@
 # AI Pathfinding Project
 
-[![pipeline status](https://gitlab.com/louis.jackman/ai-pathfinding-project/badges/master/pipeline.svg)](https://gitlab.com/louis.jackman/ai-pathfinding-project/-/commits/master)
+[![pipeline status](https://gitlab.com/louis.jackman/ai-pathfinding-project/badges/main/pipeline.svg)](https://gitlab.com/louis.jackman/ai-pathfinding-project/-/commits/main)
 
 A small web-based game to explore path-finding algorithms. View a
 [demo](https://volatilethunk.com/projects/ai-pathfinding-project/index.html).

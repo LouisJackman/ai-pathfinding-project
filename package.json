@@ -17,7 +17,7 @@
   "bugs": {
     "url": "https://gitlab.com/louis.jackman/ai-pathfinding-project/-/issues"
   },
-  "homepage": "https://gitlab.com/louis.jackman/ai-pathfinding-project/-/blob/master/README.md",
+  "homepage": "https://gitlab.com/louis.jackman/ai-pathfinding-project/-/blob/main/README.md",
   "dependencies": {
     "tslib": "^2.5.0"
   },
